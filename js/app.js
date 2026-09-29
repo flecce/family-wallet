@@ -238,6 +238,8 @@ function openUserMenu({ instant = false } = {}) {
       toast(t("notificationsOff"));
     } else if (await enableNotifications()) {
       toast(t("notificationsOn"), "success");
+      // se c'è un wallet aperto, ridisegnandolo il dispositivo viene registrato subito nel foglio
+      if (parseHash().seg[0] === "w") route({ keepSheets: true });
     } else {
       toast(t("notificationsBlocked"), "error");
     }
