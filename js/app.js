@@ -1,6 +1,8 @@
 import { AuthRequiredError, getAccessToken, getSession, handleRedirect, isConfigured, renewSilently, signIn, signOut } from "./auth.js";
 import { monthOf, monthSummary } from "./balance.js";
 import { googleLogo, icon, logo, microsoftLogo } from "./icons.js";
+import { canOfferInstall, isIos, promptInstall } from "./install.js";
+import { THEMES, applyTheme, setTheme, theme } from "./theme.js";
 import {
   avatar,
   centsToInput,
@@ -97,6 +99,113 @@ function confirmDialog({ title, text, ok = "Conferma", danger = false }) {
     document.body.appendChild(wrap);
     requestAnimationFrame(() => wrap.classList.add("show"));
   });
+}
+
+/** Pannello dal basso generico. Si chiude toccando fuori, con Esc o con [data-action=close]. */
+function openSheet(inner, className = "") {
+  const wrap = document.createElement("div");
+  wrap.className = "sheet-backdrop";
+  wrap.innerHTML = `<div class="sheet ${className}" role="dialog" aria-modal="true"><div class="sheet-grip"></div>${inner}</div>`;
+  const onKey = (e) => e.key === "Escape" && close();
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    wrap.classList.remove("show");
+    setTimeout(() => wrap.remove(), 250);
+  };
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-action=close]")) close();
+  });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(wrap);
+  requestAnimationFrame(() => wrap.classList.add("show"));
+  return { el: wrap.querySelector(".sheet"), close };
+}
+
+// ---------- menu utente (come le impostazioni di Spendly) ----------
+
+const THEME_OPTIONS = { system: ["Sistema", "monitor"], light: ["Chiaro", "sun"], dark: ["Scuro", "moon"] };
+
+const userButton = () =>
+  `<button class="user-btn" data-user-menu aria-label="Menu utente" aria-haspopup="dialog">${avatar(session.user, 40)}</button>`;
+
+function openUserMenu() {
+  if (!session) return;
+  const user = session.user;
+  const inHome = parseHash().seg.length === 0;
+  const { el, close } = openSheet(
+    `
+    <div class="sheet-head">
+      <h3>Impostazioni</h3>
+      <button class="icon-btn small" data-action="close" aria-label="Chiudi">${icon("close", 18)}</button>
+    </div>
+    <div class="account-card">
+      ${avatar(user, 52)}
+      <div>
+        <strong>${esc(user.name)}</strong>
+        <span class="muted">${esc(user.email)}</span>
+        <small class="muted">${session.provider === "demo" ? "Modalità demo" : `Accesso con ${PROVIDER_NAME[session.provider]}`}</small>
+      </div>
+    </div>
+
+    <div class="menu-label">Tema</div>
+    <div class="segmented" role="radiogroup" aria-label="Tema">
+      ${THEMES.map(
+        (t) =>
+          `<button role="radio" aria-checked="${t === theme}" data-theme-choice="${t}">${icon(THEME_OPTIONS[t][1], 18)}<span>${THEME_OPTIONS[t][0]}</span></button>`,
+      ).join("")}
+    </div>
+
+    <div class="menu-list">
+      ${
+        canOfferInstall()
+          ? `<button class="menu-item" data-action="install">${icon("download", 20)}<span>Installa come app</span>${icon("next", 18)}</button>`
+          : ""
+      }
+      ${inHome ? "" : `<a class="menu-item" href="#/">${icon("wallet", 20)}<span>Tutti i wallet</span>${icon("next", 18)}</a>`}
+      <button class="menu-item danger" data-action="logout">${icon("logout", 20)}<span>Esci</span></button>
+    </div>`,
+    "menu-sheet",
+  );
+
+  el.querySelectorAll("[data-theme-choice]").forEach((b) =>
+    b.addEventListener("click", () => {
+      setTheme(b.dataset.themeChoice);
+      el.querySelectorAll("[data-theme-choice]").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    }),
+  );
+  el.querySelector("[data-action=install]")?.addEventListener("click", async () => {
+    close();
+    if (!(await promptInstall())) openInstallHelp();
+  });
+  el.querySelector("[data-action=logout]").addEventListener("click", async () => {
+    close();
+    const ok = await confirmDialog({
+      title: "Uscire?",
+      text: "I wallet restano nei fogli sul cloud: potrai rientrare quando vuoi.",
+      ok: "Esci",
+      danger: true,
+    });
+    if (ok) logout();
+  });
+}
+
+/** Nessun prompt del browser (sempre così su iPhone): si spiegano i passaggi a mano. */
+function openInstallHelp() {
+  openSheet(`
+    <div class="sheet-head">
+      <h3>Installa come app</h3>
+      <button class="icon-btn small" data-action="close" aria-label="Chiudi">${icon("close", 18)}</button>
+    </div>
+    <div class="install-help">
+      ${logo(56)}
+      <p>${
+        isIos
+          ? `In Safari tocca <strong>Condividi</strong> ${icon("share", 16)} e poi <strong>Aggiungi alla schermata Home</strong>.`
+          : `Apri il menu del browser (<strong>⋮</strong>) e scegli <strong>Installa app</strong> o <strong>Aggiungi a schermata Home</strong>.`
+      }</p>
+      <p class="muted small">Family Wallet si aprirà a tutto schermo, come un'app, dall'icona sulla schermata Home.</p>
+    </div>
+    <button class="btn btn-primary btn-block" data-action="close">Ho capito</button>`);
 }
 
 async function busy(button, label, fn) {
@@ -212,6 +321,7 @@ function bottomNav(key, active, month) {
 
 async function route() {
   const seq = ++renderSeq;
+  document.querySelectorAll(".sheet-backdrop").forEach((el) => el.remove()); // chiude eventuali pannelli aperti
   session = getSession();
   const { seg, q } = parseHash();
   const stale = () => seq !== renderSeq;
@@ -302,10 +412,10 @@ async function viewHome(stale) {
   const header = `
     <header class="home-header">
       <div class="hello">
-        ${avatar(user, 44)}
+        ${logo(44)}
         <div><small class="muted">Ciao 👋</small><h1>${esc(firstName(user.name))}</h1></div>
       </div>
-      <button class="icon-btn" id="logout" aria-label="Esci">${icon("logout")}</button>
+      ${userButton()}
     </header>`;
   const actions = `
     <div class="home-actions">
@@ -321,7 +431,6 @@ async function viewHome(stale) {
       </a>
     </div>`;
   render(`${header}<div class="page">${actions}<div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>`);
-  app.querySelector("#logout").addEventListener("click", logout);
 
   const wallets = (await driverForProvider(session.provider).list()).sort((a, b) => a.name.localeCompare(b.name));
   if (stale()) return;
@@ -363,7 +472,6 @@ async function viewHome(stale) {
       ${wallets.length ? `<p class="hint center">Tocca la stella per aprire un wallet automaticamente all'avvio.</p>` : ""}
       <p class="hint center">${icon("sheet", 14)} I wallet sono fogli ${esc(STORAGE_NAME[session.provider])}</p>
     </div>`);
-  app.querySelector("#logout").addEventListener("click", logout);
 
   const paintStars = () => {
     app.querySelectorAll(".star-btn").forEach((b) => {
@@ -550,6 +658,7 @@ async function viewWallet(key, tab, q, stale) {
       <a class="icon-btn" href="#/" aria-label="Tutti i wallet">${icon("back")}</a>
       <div class="topbar-title"><small class="muted">Wallet</small><h1>${esc(doc.name)}</h1></div>
       <button class="icon-btn" id="refresh" aria-label="Aggiorna">${icon("refresh", 20)}</button>
+      ${userButton()}
     </header>`;
 
   let body;
@@ -977,6 +1086,10 @@ async function boot() {
     const hash = startHash(location.hash);
     if (hash !== location.hash) history.replaceState(null, "", hash);
   }
+  applyTheme();
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-user-menu]")) openUserMenu();
+  });
   window.addEventListener("hashchange", route);
   route();
 }
