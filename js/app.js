@@ -3,6 +3,7 @@ import { monthOf, monthSummary } from "./balance.js";
 import { LANGS, countLabel, lang, setLang, t } from "./i18n.js";
 import { googleLogo, icon, logo, microsoftLogo } from "./icons.js";
 import { canOfferInstall, isIos, promptInstall } from "./install.js";
+import { qrSvg } from "./qr.js";
 import { THEMES, applyTheme, setTheme, theme } from "./theme.js";
 import {
   avatar,
@@ -32,6 +33,7 @@ import {
   openWallet,
   providerOf,
   providerOfCode,
+  qrKey,
   rules,
 } from "./wallet.js";
 
@@ -106,13 +108,14 @@ function confirmDialog({ title, text, ok = t("confirm"), danger = false }) {
 }
 
 /** Pannello dal basso generico. Si chiude toccando fuori, con Esc o con [data-action=close]. */
-function openSheet(inner, className = "") {
+function openSheet(inner, className = "", onClose = () => {}) {
   const wrap = document.createElement("div");
   wrap.className = "sheet-backdrop";
   wrap.innerHTML = `<div class="sheet ${className}" role="dialog" aria-modal="true"><div class="sheet-grip"></div>${inner}</div>`;
   const onKey = (e) => e.key === "Escape" && close();
   const close = ({ instant = false } = {}) => {
     document.removeEventListener("keydown", onKey);
+    onClose();
     if (instant) return wrap.remove();
     wrap.classList.remove("show");
     setTimeout(() => wrap.remove(), 250);
@@ -608,6 +611,24 @@ function viewAccess(q, message) {
   }
 
   const wrongProvider = codeProvider && codeProvider !== session.provider;
+
+  // arrivati dal QR (codice + impronta della password): si entra senza digitare nulla
+  if (q.get("k") && code && !wrongProvider && !message) {
+    render(`<div class="page center-page"><span class="spinner big"></span><p class="muted">${esc(t("joiningWallet"))}</p></div>`);
+    joinWithCode(code, null, session.user, session.provider, { key: q.get("k") })
+      .then((key) => {
+        toast(t("welcomeIn"), "success");
+        location.replace(walletHref(key)); // toglie l'impronta dall'indirizzo e dalla cronologia
+      })
+      .catch((err) => {
+        if (err instanceof AuthRequiredError) return errorScreen(err);
+        const retry = new URLSearchParams(q);
+        retry.delete("k");
+        viewAccess(retry, err.message);
+      });
+    return;
+  }
+
   render(`
     <header class="topbar"><a class="icon-btn" href="#/" aria-label="${esc(t("back"))}">${icon("back")}</a><div class="topbar-title"><h1>${esc(t("accessTitle"))}</h1></div></header>
     <form class="page" id="form" novalidate>
@@ -619,6 +640,7 @@ function viewAccess(q, message) {
              <button class="btn btn-primary btn-block" type="button" id="switch">${esc(t("switchProvider", { provider: PROVIDER_NAME[codeProvider] }))}</button>`
           : ""
       }
+      ${canScanQr() && !wrongProvider ? `<button class="btn btn-ghost btn-block" type="button" id="scan">${icon("qr", 20)} ${esc(t("scanQr"))}</button>` : ""}
       <label class="field">
         <span>${esc(t("walletCode"))}</span>
         <textarea name="code" rows="2" required spellcheck="false" autocomplete="off" placeholder="${esc(t("codePlaceholder"))}">${esc(code)}</textarea>
@@ -637,6 +659,7 @@ function viewAccess(q, message) {
     signOut();
     route();
   });
+  app.querySelector("#scan")?.addEventListener("click", () => openScanner((text) => handleScannedCode(text, form)));
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!form.code.value.trim()) return toast(t("codeRequired"), "error");
@@ -850,10 +873,83 @@ function expensesTab(key, doc, s, member, q) {
     }`;
 }
 
-function inviteUrl(doc) {
+/** Link di invito (codice già inserito). Con withKey include l'impronta della password: solo per il QR. */
+function inviteUrl(doc, { withKey = false } = {}) {
   const owner = doc.members.find((m) => m.id === doc.ownerId);
   const query = new URLSearchParams({ c: doc.code, n: doc.name, o: firstName(owner?.name) });
+  if (withKey && qrKey(doc)) query.set("k", qrKey(doc));
   return `${location.origin}${location.pathname}#/accedi?${query}`;
+}
+
+function openQrSheet(doc, key) {
+  openSheet(
+    `
+    <div class="sheet-head">
+      <h3>${esc(t("qrTitle"))}</h3>
+      <button class="icon-btn small" data-action="close" aria-label="${esc(t("close"))}">${icon("close", 18)}</button>
+    </div>
+    <div class="qr-card">
+      ${qrSvg(inviteUrl(doc, { withKey: true }), { label: esc(t("qrTitle")) })}
+      <strong>${esc(doc.name)}</strong>
+    </div>
+    <p class="muted small center">${esc(t("qrHint", { provider: PROVIDER_NAME[providerOf(key)] }))}</p>
+    <div class="info-card warn">${icon("lock", 20)}<p>${esc(t("qrWarning"))}</p></div>`,
+    "qr-sheet",
+  );
+}
+
+/** Scansione del QR dentro l'app (Chrome su Android; su iPhone si usa la fotocamera di sistema). */
+const canScanQr = () => "BarcodeDetector" in window && Boolean(navigator.mediaDevices?.getUserMedia);
+
+async function openScanner(onCode) {
+  let stream;
+  let timer;
+  const stop = () => {
+    clearInterval(timer);
+    stream?.getTracks().forEach((track) => track.stop());
+  };
+  const { el, close } = openSheet(
+    `
+    <div class="sheet-head">
+      <h3>${esc(t("scanQr"))}</h3>
+      <button class="icon-btn small" data-action="close" aria-label="${esc(t("close"))}">${icon("close", 18)}</button>
+    </div>
+    <div class="scanner"><video playsinline muted></video><span class="scanner-frame"></span></div>
+    <p class="muted small center">${esc(t("scanHint"))}</p>`,
+    "qr-sheet",
+    stop,
+  );
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  } catch {
+    close();
+    return toast(t("cameraDenied"), "error");
+  }
+  const video = el.querySelector("video");
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+  const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+  timer = setInterval(async () => {
+    const [found] = await detector.detect(video).catch(() => []);
+    if (!found) return;
+    close();
+    onCode(found.rawValue);
+  }, 300);
+}
+
+/** Dal contenuto di un QR: un link di invito dell'app oppure un codice wallet nudo. */
+function handleScannedCode(text, form) {
+  const hashAt = text.indexOf("#/accedi?");
+  if (hashAt >= 0) {
+    location.hash = text.slice(hashAt + 1);
+    return;
+  }
+  if (providerOfCode(text.trim())) {
+    form.code.value = text.trim();
+    form.password.focus();
+    return;
+  }
+  toast(t("qrNotWallet"), "error");
 }
 
 function membersTab(key, doc) {
@@ -875,9 +971,10 @@ function membersTab(key, doc) {
     ? `
       <p class="muted small">${t("codeHint")}</p>
       <div class="code-box"><code>${esc(doc.code)}</code></div>
+      <button class="btn btn-primary btn-block" id="show-qr">${icon("qr", 20)} ${esc(t("showQr"))}</button>
       <div class="row-actions">
         <button class="btn btn-ghost" id="copy-code">${icon("copy", 18)} ${esc(t("copy"))}</button>
-        <button class="btn btn-primary" id="share-invite">${icon("share", 18)} ${esc(t("sendLink"))}</button>
+        <button class="btn btn-ghost" id="share-invite">${icon("share", 18)} ${esc(t("sendLink"))}</button>
       </div>
       <p class="hint">${esc(t("linkHint"))}</p>`
     : `
@@ -935,6 +1032,8 @@ function bindWalletActions(key, doc, month) {
       toast(err.message, "error");
     }
   });
+
+  app.querySelector("#show-qr")?.addEventListener("click", () => openQrSheet(doc, key));
 
   app.querySelector("#copy-code")?.addEventListener("click", async () => {
     try {

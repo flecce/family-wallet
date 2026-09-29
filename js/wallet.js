@@ -78,16 +78,25 @@ export class NotMemberError extends Error {
   }
 }
 
-async function checkPassword(doc, password) {
+/**
+ * Password digitata, oppure la sua impronta (key) letta dal QR code mostrato di persona.
+ * L'impronta è la stessa salvata nel foglio, che chi ha il codice può già leggere:
+ * il QR non dà più accesso di quanto diano codice e password insieme.
+ */
+async function checkPassword(doc, password, key) {
   if (!doc.password) return true; // wallet senza password (creato a mano): basta il codice
-  return (await hashPassword(password, doc.password.salt)) === doc.password.hash;
+  if (key) return key === doc.password.hash;
+  return (await hashPassword(password ?? "", doc.password.salt)) === doc.password.hash;
 }
+
+/** Link per il QR: come quello di invito, più l'impronta della password per entrare senza digitarla. */
+export const qrKey = (doc) => doc.password?.hash;
 
 /**
  * "Accedi a wallet": dal codice (+ password) all'ingresso nel wallet.
  * La password è un controllo dell'app: il foglio resta accessibile a chi ha il codice.
  */
-export async function joinWithCode(rawCode, password, user, userProvider) {
+export async function joinWithCode(rawCode, password, user, userProvider, { key: qrKeyValue } = {}) {
   const code = rawCode.trim().replace(/\s+/g, "");
   const provider = providerOfCode(code);
   if (!provider) throw new Error(t("invalidCodePrefix"));
@@ -104,7 +113,7 @@ export async function joinWithCode(rawCode, password, user, userProvider) {
   const key = await driver.resolveCode(code);
   const doc = await loadWallet(key, { fresh: true });
   if (!doc.members.some((m) => m.id === user.id)) {
-    if (!(await checkPassword(doc, password))) throw new Error(t("wrongPassword"));
+    if (!(await checkPassword(doc, password, qrKeyValue))) throw new Error(t(qrKeyValue ? "qrExpired" : "wrongPassword"));
     await mutateWallet(key, (d) => rules.ensureMember(d, user));
   }
   const owner = doc.members.find((m) => m.id === doc.ownerId);
