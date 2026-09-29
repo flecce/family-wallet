@@ -16,8 +16,9 @@ export const SHEETS = {
   },
   members: {
     title: "Membri",
-    header: ["Email", "Nome", "Foto", "Entrato il"],
-    textColumns: [0, 1, 2, 3],
+    // "Notifiche push" = abbonamenti push dei dispositivi del membro (indirizzo + chiavi pubbliche del browser)
+    header: ["Email", "Nome", "Foto", "Entrato il", "Notifiche push (JSON)"],
+    textColumns: [0, 1, 2, 3, 4],
   },
   settlements: {
     title: "Mesi pagati",
@@ -52,6 +53,16 @@ const idList = (v) =>
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
 
+/** Abbonamenti push salvati nel foglio; celle vuote o modificate a mano diventano "nessuno". */
+function parsePush(value) {
+  try {
+    const list = JSON.parse(str(value) || "[]");
+    return Array.isArray(list) ? list.filter((s) => s?.endpoint && s.keys?.p256dh && s.keys?.auth) : [];
+  } catch {
+    return [];
+  }
+}
+
 const nonEmpty = (rows) => rows.filter((r) => r.some((c) => str(c) !== ""));
 
 export function docToTables(doc) {
@@ -76,7 +87,7 @@ export function docToTables(doc) {
     ],
     [SHEETS.members.title]: [
       SHEETS.members.header,
-      ...doc.members.map((m) => [m.id, m.name, m.picture ?? "", m.joinedAt]),
+      ...doc.members.map((m) => [m.id, m.name, m.picture ?? "", m.joinedAt, m.push?.length ? JSON.stringify(m.push) : ""]),
     ],
     [SHEETS.settlements.title]: [
       SHEETS.settlements.header,
@@ -126,6 +137,7 @@ export function tablesToDoc(tables) {
       name: str(r[1]) || str(r[0]),
       picture: str(r[2]) || undefined,
       joinedAt: cellTimestamp(r[3]),
+      push: parsePush(r[4]),
     })),
     expenses: body(SHEETS.expenses)
       .filter((r) => str(r[0]))

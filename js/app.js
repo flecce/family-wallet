@@ -14,9 +14,14 @@ import { LANGS, countLabel, lang, setLang, t } from "./i18n.js";
 import { googleLogo, icon, logo, microsoftLogo } from "./icons.js";
 import { canOfferInstall, isIos, promptInstall } from "./install.js";
 import {
+  currentPushSubscription,
   disableNotifications,
   enableNotifications,
+  forgetPushEndpoint,
+  lastPushEndpoint,
   markSeen,
+  pushConfigured,
+  pushToMembers,
   notificationsBlocked,
   notificationsEnabled,
   notificationsNeedInstall,
@@ -229,7 +234,7 @@ function openUserMenu({ instant = false } = {}) {
   el.querySelector("[data-action=notify]")?.addEventListener("click", async (e) => {
     const item = e.target.closest("[data-action=notify]");
     if (notificationsEnabled()) {
-      disableNotifications();
+      await disableNotifications();
       toast(t("notificationsOff"));
     } else if (await enableNotifications()) {
       toast(t("notificationsOn"), "success");
@@ -255,7 +260,7 @@ function notificationItem() {
   }
   if (!notificationsSupported()) return "";
   const on = notificationsEnabled();
-  const hint = notificationsBlocked() ? t("notificationsBlocked") : t("notificationsHint");
+  const hint = notificationsBlocked() ? t("notificationsBlocked") : t(pushConfigured() ? "notificationsHintPush" : "notificationsHint");
   return `<button class="menu-item" data-action="notify" role="switch" aria-checked="${on}">${icon("bell", 20)}<span>${esc(t("notifications"))}<small>${esc(hint)}</small></span><span class="switch" aria-hidden="true"></span></button>`;
 }
 
@@ -320,6 +325,52 @@ function watchWallet(key, walletName) {
       }
     }
   }, 60_000);
+}
+
+/**
+ * Tiene allineato il foglio con questo dispositivo: se le notifiche sono attive lo registra tra i
+ * destinatari del membro, se sono state disattivate lo toglie. Gira in background, senza bloccare.
+ */
+async function syncPushSubscription(key, doc) {
+  if (!pushConfigured() || session.provider === "demo") return;
+  const me = doc.members.find((m) => m.id === session.user.id);
+  try {
+    const subscription = await currentPushSubscription();
+    if (subscription) {
+      if (!me?.push?.some((s) => s.endpoint === subscription.endpoint)) {
+        await mutateWallet(key, (d) => rules.setPushSubscription(d, session.user, subscription));
+      }
+      return;
+    }
+    const old = lastPushEndpoint();
+    if (old && me?.push?.some((s) => s.endpoint === old)) {
+      await mutateWallet(key, (d) => rules.removePushEndpoints(d, [old]));
+    }
+  } catch {
+    // si riprova alla prossima apertura del wallet
+  }
+}
+
+/** Dopo aver aggiunto una spesa: notifica push agli altri membri (anche ad app chiusa). */
+async function notifyNewExpense(key, doc, expense) {
+  const others = doc.members.filter((m) => m.id !== session.user.id).flatMap((m) => m.push ?? []);
+  if (!others.length) return;
+  const payer = doc.members.find((m) => m.id === expense.paidBy);
+  const note = expense.note || t("expense");
+  const body =
+    t("notifyBody", { name: firstName(session.user.name), note, amount: formatMoney(expense.amountCents) }) +
+    (expense.paidBy !== session.user.id && payer ? ` · ${t("paidByNote", { name: firstName(payer.name) })}` : "");
+  const gone = await pushToMembers(
+    others,
+    {
+      title: t("notifyTitle", { wallet: doc.name }),
+      body,
+      url: `${location.origin}${location.pathname}${walletHref(key)}`,
+      tag: expense.id,
+    },
+    session.provider,
+  );
+  if (gone.length) mutateWallet(key, (d) => rules.removePushEndpoints(d, gone)).catch(() => {});
 }
 
 function changeLanguage(next) {
@@ -841,6 +892,7 @@ async function viewWallet(key, tab, q, stale) {
   });
   bindWalletActions(key, doc, month);
   watchWallet(key, doc.name);
+  syncPushSubscription(key, doc);
 }
 
 function expenseRow(key, e, member, month, locked) {
@@ -1308,9 +1360,10 @@ async function viewExpenseForm(key, expenseId, q, stale) {
     const paidBy = form.querySelector("[name=paidBy]:checked, input[type=hidden][name=paidBy]")?.value ?? user.id;
     const data = { date: form.date.value, note: form.note.value, amountCents, splitAmong, paidBy };
     try {
-      await busy(form.querySelector("[type=submit]"), t("savingSheet"), () =>
+      const saved = await busy(form.querySelector("[type=submit]"), t("savingSheet"), () =>
         mutateWallet(key, (d) => (expense ? rules.updateExpense(d, user, expense.id, data) : rules.addExpense(d, user, data))),
       );
+      if (!expense && saved) loadWallet(key).then((fresh) => notifyNewExpense(key, fresh, saved)).catch(() => {});
       toast(expense ? t("expenseUpdated") : t("expenseAdded"), "success");
       go(walletHref(key, "spese", monthOf(data.date)));
     } catch (err) {

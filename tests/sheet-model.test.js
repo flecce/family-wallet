@@ -11,8 +11,14 @@ const doc = {
   code: "G-abc123def456",
   password: { salt: "s", hash: "h" },
   members: [
-    { id: "fabiano@x.it", name: "Fabiano", picture: undefined, joinedAt: "2026-09-01T10:00:00.000Z" },
-    { id: "selene@x.it", name: "Selene", picture: "https://x/p.png", joinedAt: "2026-09-02T10:00:00.000Z" },
+    { id: "fabiano@x.it", name: "Fabiano", picture: undefined, joinedAt: "2026-09-01T10:00:00.000Z", push: [] },
+    {
+      id: "selene@x.it",
+      name: "Selene",
+      picture: "https://x/p.png",
+      joinedAt: "2026-09-02T10:00:00.000Z",
+      push: [{ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "BPub", auth: "sec" } }],
+    },
   ],
   expenses: [
     {

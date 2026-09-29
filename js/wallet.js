@@ -166,7 +166,9 @@ export const rules = {
     const data = validExpense({ paidBy: user.id, ...input }, doc);
     assertMonthOpen(doc, data.date);
     const now = new Date().toISOString();
-    doc.expenses.push({ id: `e_${uid()}`, ...data, createdBy: user.id, createdAt: now, updatedAt: now });
+    const expense = { id: `e_${uid()}`, ...data, createdBy: user.id, createdAt: now, updatedAt: now };
+    doc.expenses.push(expense);
+    return expense;
   },
 
   updateExpense(doc, user, id, input) {
@@ -199,5 +201,19 @@ export const rules = {
 
   reopenMonth(doc, _user, month) {
     doc.settlements = doc.settlements.filter((s) => s.month !== month);
+  },
+
+  /** Registra (o aggiorna) il dispositivo dell'utente per le notifiche push. */
+  setPushSubscription(doc, user, subscription) {
+    const me = doc.members.find((m) => m.id === user.id);
+    if (!me) return;
+    const others = (me.push ?? []).filter((s) => s.endpoint !== subscription.endpoint);
+    me.push = [...others, { endpoint: subscription.endpoint, keys: subscription.keys }].slice(-5); // al massimo 5 dispositivi
+  },
+
+  /** Toglie abbonamenti non più validi (o del dispositivo che ha disattivato le notifiche). */
+  removePushEndpoints(doc, endpoints) {
+    const drop = new Set(endpoints);
+    for (const m of doc.members) if (m.push?.some((s) => drop.has(s.endpoint))) m.push = m.push.filter((s) => !drop.has(s.endpoint));
   },
 };

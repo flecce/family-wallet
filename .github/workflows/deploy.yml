@@ -34,6 +34,8 @@ jobs:
           # sostituiscono i valori di js/config.js
           FW_GOOGLE_CLIENT_ID: ${{ vars.FW_GOOGLE_CLIENT_ID }}
           FW_MICROSOFT_CLIENT_ID: ${{ vars.FW_MICROSOFT_CLIENT_ID }}
+          FW_PUSH_WORKER_URL: ${{ vars.FW_PUSH_WORKER_URL }}
+          FW_VAPID_PUBLIC_KEY: ${{ vars.FW_VAPID_PUBLIC_KEY }}
 
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -31,6 +31,7 @@ function configSource() {
   const config = {
     google: { clientId: env.FW_GOOGLE_CLIENT_ID ?? "" },
     microsoft: { clientId: env.FW_MICROSOFT_CLIENT_ID ?? "" },
+    push: { workerUrl: (env.FW_PUSH_WORKER_URL ?? "").replace(/\/$/, ""), vapidPublicKey: env.FW_VAPID_PUBLIC_KEY ?? "" },
   };
   console.log("config.js generato dalle variabili della pipeline");
   return `window.FAMILY_WALLET_CONFIG = ${JSON.stringify(config, null, 2)};\n`;

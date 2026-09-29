@@ -9,4 +9,10 @@ window.FAMILY_WALLET_CONFIG = {
     // Microsoft Entra -> Registrazioni app -> ID applicazione (client), piattaforma "Applicazione a pagina singola"
     clientId: "",
   },
+  push: {
+    // Indirizzo del Worker Cloudflare delle notifiche (es. https://family-wallet-push.<account>.workers.dev)
+    workerUrl: "",
+    // Chiave pubblica VAPID (node scripts/vapid-keys.mjs): la privata va solo nei segreti
+    vapidPublicKey: "",
+  },
 };

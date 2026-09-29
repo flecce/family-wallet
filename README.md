@@ -20,8 +20,8 @@ App web mobile-first per segnare le spese di famiglia e vedere, mese per mese, *
 - **Segna il mese come pagato** (e riaprilo): le spese di un mese pagato non si modificano.
 - Ogni spesa può essere modificata o cancellata solo da chi l'ha inserita.
 - **Novità**: aprendo un wallet si vedono le spese aggiunte dagli altri dall'ultima volta.
-- **Notifiche** (menu utente): mentre l'app è aperta, anche in background, ricontrolla il foglio ogni minuto e
-  avvisa con una notifica di sistema. Ad app chiusa non arrivano: servirebbe un server per le notifiche push.
+- **Notifiche** (menu utente): push anche ad app chiusa tramite un Cloudflare Worker (vedi sotto); mentre l'app è aperta ricontrolla anche il foglio ogni minuto e
+  avvisa con una notifica di sistema.
   Su iPhone funzionano solo con l'app installata nella schermata Home.
 - **QR code** per entrare in un wallet inquadrandolo da un altro telefono.
 - Si entra solo con Google o Microsoft. La demo senza account esiste solo in sviluppo (app aperta da `localhost`).
@@ -82,6 +82,29 @@ un redirect silenzioso.
 2. Piattaforma **Applicazione a pagina singola (SPA)** con URI di reindirizzamento `https://<utente>.github.io/<repo>/` (e `http://localhost:8080/`).
 3. Autorizzazioni delegate di Microsoft Graph: `User.Read`, `Files.ReadWrite.All`, `offline_access`.
 4. L'ID applicazione (client) → `clientId`.
+
+### Notifiche push (Cloudflare Worker)
+
+Per le notifiche **ad app chiusa** serve il "postino" in [`worker/`](worker/): un Cloudflare Worker (piano
+gratuito) che non salva nulla. Riceve dall'app i destinatari (gli abbonamenti push salvati nella colonna
+"Notifiche push" del foglio Membri) e il testo, controlla che chi chiama sia loggato con Google o Microsoft,
+firma con la chiave VAPID privata e spedisce ai servizi di push dei browser.
+
+1. **Chiavi VAPID**, sul tuo PC: `node scripts/vapid-keys.mjs`. La privata non va mai nel codice.
+2. **Cloudflare** (dash.cloudflare.com):
+   - *Workers e Pages*: se è la prima volta, scegli il sottodominio `*.workers.dev`;
+   - *Il mio profilo → Token API → Crea token* dal modello **"Modifica Cloudflare Workers"**;
+   - l'**ID account** è nella colonna a destra della home di *Workers e Pages*.
+3. **GitHub** → Settings → Secrets and variables → Actions:
+   - *Secrets*: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VAPID_PRIVATE_KEY`;
+   - *Variables*: `FW_VAPID_PUBLIC_KEY`.
+4. Actions → **"Rilascio Worker notifiche (Cloudflare)"** → *Run workflow*. Nel log compare l'indirizzo del
+   Worker, tipo `https://family-wallet-push.<sottodominio>.workers.dev`.
+5. Variabile `FW_PUSH_WORKER_URL` con quell'indirizzo, poi rilancia **"Rilascio su GitHub Pages"**.
+6. Su ogni telefono: menu utente → **Notifiche** attive, poi apri una volta ogni wallet (registra il dispositivo).
+
+Il Worker accetta chiamate solo dalle origini in `worker/wrangler.toml` (`ALLOWED_ORIGINS`) e spedisce solo
+ai servizi di push noti (Google, Apple, Mozilla, Microsoft).
 
 ## Rilascio
 
