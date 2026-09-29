@@ -99,7 +99,10 @@ export async function encryptPayload(subscriptionKeys, payload, { salt, serverKe
   return concat(salt, recordSize, new Uint8Array([asPublic.length]), asPublic, ciphertext);
 }
 
-/** Invia una notifica. Restituisce lo status HTTP del servizio di push (201 = consegnata, 404/410 = abbonamento scaduto). */
+/**
+ * Invia una notifica. Restituisce { status, detail }: status HTTP del servizio di push
+ * (201 = consegnata, 404/410 = abbonamento scaduto) e, se è un errore, il motivo dichiarato.
+ */
 export async function sendPush(subscription, payload, vapid, { ttl = 24 * 3600 } = {}) {
   const body = await encryptPayload(subscription.keys, payload);
   const res = await fetch(subscription.endpoint, {
@@ -113,5 +116,6 @@ export async function sendPush(subscription, payload, vapid, { ttl = 24 * 3600 }
     },
     body,
   });
-  return res.status;
+  const detail = res.ok ? "" : (await res.text().catch(() => "")).slice(0, 300);
+  return { status: res.status, detail };
 }

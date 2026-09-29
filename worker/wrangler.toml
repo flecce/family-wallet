@@ -2,9 +2,14 @@ name = "family-wallet-push"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 
+# log conservati da Cloudflare (Workers → family-wallet-push → Logs)
+[observability]
+enabled = true
+
 [vars]
 # Siti che possono usare il Worker (separati da virgola)
 ALLOWED_ORIGINS = "https://lecce.dev,http://localhost:8080"
 # Contatto per i servizi di push (un URL o mailto:)
 VAPID_SUBJECT = "https://lecce.dev/family-wallet/"
-# VAPID_PUBLIC_KEY arriva dalla pipeline (--var), VAPID_PRIVATE_KEY è un segreto (wrangler secret)
+# Chiave pubblica VAPID (pubblica per definizione). La privata è il segreto VAPID_PRIVATE_KEY (wrangler secret put).
+VAPID_PUBLIC_KEY = "BEqEWwDIJCeBlLR_J7EG9986DS97jKKVHFPPAqjgCOAbTcUVn1kY3Igkmd_3zuddyR1jKBmqITz0bm5ZplBLz7w"

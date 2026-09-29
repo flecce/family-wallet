@@ -70,8 +70,15 @@ export default {
 
     const { pathname } = new URL(request.url);
     if (request.method !== "POST" || pathname !== "/notify") return json({ error: "not_found" }, 404, cors);
-    if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return json({ error: "vapid_not_configured" }, 500, cors);
-    if (!(await isSignedIn(request))) return json({ error: "unauthorized" }, 401, cors);
+    const provider = request.headers.get("X-Provider");
+    if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
+      console.log("notify: chiavi VAPID mancanti");
+      return json({ error: "vapid_not_configured" }, 500, cors);
+    }
+    if (!(await isSignedIn(request))) {
+      console.log(`notify: login non valido (provider=${provider})`);
+      return json({ error: "unauthorized" }, 401, cors);
+    }
 
     let input;
     try {
@@ -79,9 +86,22 @@ export default {
     } catch {
       return json({ error: "bad_json" }, 400, cors);
     }
-    const subscriptions = (Array.isArray(input.subscriptions) ? input.subscriptions : [])
+    const received = Array.isArray(input.subscriptions) ? input.subscriptions : [];
+    const subscriptions = received
       .filter((s) => isPushEndpoint(s?.endpoint) && s.keys?.p256dh && s.keys?.auth)
       .slice(0, MAX_SUBSCRIPTIONS);
+    // nei log solo il servizio di push, mai l'indirizzo completo (identifica il dispositivo)
+    const hostOf = (endpoint) => {
+      try {
+        return new URL(endpoint).hostname;
+      } catch {
+        return "indirizzo non valido";
+      }
+    };
+    console.log(
+      `notify: provider=${provider} destinatari ricevuti=${received.length} validi=${subscriptions.length} ` +
+        `servizi=[${received.map((s) => hostOf(s?.endpoint)).join(", ")}]`,
+    );
     const payload = {
       title: clip(input.payload?.title),
       body: clip(input.payload?.body),
@@ -97,8 +117,11 @@ export default {
     const results = await Promise.all(
       subscriptions.map(async (s) => {
         try {
-          return { endpoint: s.endpoint, status: await sendPush(s, payload, vapid) };
-        } catch {
+          const { status, detail } = await sendPush(s, payload, vapid);
+          console.log(`push ${hostOf(s.endpoint)} → ${status}${detail ? ` ${detail}` : ""}`);
+          return { endpoint: s.endpoint, status };
+        } catch (err) {
+          console.log(`push ${hostOf(s.endpoint)} → errore: ${err?.message ?? err}`);
           return { endpoint: s.endpoint, status: 0 };
         }
       }),
