@@ -13,18 +13,24 @@ App web mobile-first per segnare le spese di famiglia e vedere, mese per mese, *
 - Il wallet è un foglio di calcolo nel cloud del creatore:
   - utente Google → Google Sheets nel suo Drive;
   - utente Microsoft → file Excel in OneDrive (`App/Family Wallet`).
-- Spese con data, nota, importo e persone tra cui dividerle (di default tutti).
+- Spese con data, nota, importo, **chi ha pagato** (anche un altro membro: si può inserire una spesa a nome
+  di qualcun altro) e persone tra cui dividerle (di default tutti).
 - Vista mensile: totale, quanto ha pagato ognuno, e i pagamenti per pareggiare ("Fabiano deve 100,00 € a Selene").
 - Lista spese per giorno con chi le ha fatte, filtrabile per persona.
 - **Segna il mese come pagato** (e riaprilo): le spese di un mese pagato non si modificano.
 - Ogni spesa può essere modificata o cancellata solo da chi l'ha inserita.
-- **Demo** senza account: "Prova la demo" nella pagina di login (dati salvati nel browser).
+- **Novità**: aprendo un wallet si vedono le spese aggiunte dagli altri dall'ultima volta.
+- **Notifiche** (menu utente): mentre l'app è aperta, anche in background, ricontrolla il foglio ogni minuto e
+  avvisa con una notifica di sistema. Ad app chiusa non arrivano: servirebbe un server per le notifiche push.
+  Su iPhone funzionano solo con l'app installata nella schermata Home.
+- **QR code** per entrare in un wallet inquadrandolo da un altro telefono.
+- Si entra solo con Google o Microsoft. La demo senza account esiste solo in sviluppo (app aperta da `localhost`).
 
 ### Il foglio
 
 | Foglio | Contenuto |
 | --- | --- |
-| `Spese` | ID, Data, Nota, Importo (€), Pagato da (email), Pagato da, Diviso tra, Creata il, Modificata il |
+| `Spese` | ID, Data, Nota, Importo (€), Pagato da (email), Pagato da, Diviso tra, Creata il, Modificata il, Inserita da (email) |
 | `Membri` | Email, Nome, Foto, Entrato il |
 | `Mesi pagati` | Mese, Segnato da, Segnato il, Pagamenti (testo leggibile), Dettaglio (JSON) |
 | `Info` | nome del wallet, proprietario, codice, hash della password |

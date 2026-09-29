@@ -83,7 +83,8 @@ for (const [rel, build] of Object.entries(assets)) {
 }
 
 // file statici con nome fisso (cambiano di rado e il manifest li cita per nome)
-for (const rel of ["icon.svg", "manifest.webmanifest"]) fs.copyFileSync(path.join(root, rel), path.join(out, rel));
+// sw.js deve mantenere il suo nome (il browser lo registra per indirizzo)
+for (const rel of ["icon.svg", "manifest.webmanifest", "sw.js"]) fs.copyFileSync(path.join(root, rel), path.join(out, rel));
 write("index.html", html);
 write("404.html", html); // eventuali URL sbagliati tornano all'app
 write(".nojekyll", ""); // pubblica i file così come sono

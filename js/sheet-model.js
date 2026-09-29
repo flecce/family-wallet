@@ -10,8 +10,9 @@ const formatMoney = (cents) => sheetMoney.format(cents / 100);
 export const SHEETS = {
   expenses: {
     title: "Spese",
-    header: ["ID", "Data", "Nota", "Importo (€)", "Pagato da (email)", "Pagato da", "Diviso tra", "Creata il", "Modificata il"],
-    textColumns: [0, 1, 2, 4, 5, 6, 7, 8],
+    // "Inserita da" è in fondo: i fogli creati prima non l'hanno e vale "Pagato da"
+    header: ["ID", "Data", "Nota", "Importo (€)", "Pagato da (email)", "Pagato da", "Diviso tra", "Creata il", "Modificata il", "Inserita da (email)"],
+    textColumns: [0, 1, 2, 4, 5, 6, 7, 8, 9],
   },
   members: {
     title: "Membri",
@@ -65,11 +66,12 @@ export function docToTables(doc) {
           e.date,
           e.note,
           e.amountCents / 100,
-          e.createdBy,
-          nameOf(e.createdBy),
+          e.paidBy,
+          nameOf(e.paidBy),
           e.splitAmong.join("; "),
           e.createdAt,
           e.updatedAt,
+          e.createdBy,
         ]),
     ],
     [SHEETS.members.title]: [
@@ -132,7 +134,8 @@ export function tablesToDoc(tables) {
         date: cellDate(r[1]),
         note: str(r[2]),
         amountCents: cellCents(r[3]),
-        createdBy: str(r[4]).toLowerCase(),
+        paidBy: str(r[4]).toLowerCase(),
+        createdBy: (str(r[9]) || str(r[4])).toLowerCase(),
         splitAmong: idList(r[6]),
         createdAt: cellTimestamp(r[7]),
         updatedAt: cellTimestamp(r[8]),

@@ -1,5 +1,7 @@
 // Calcolo dei saldi mensili: ogni spesa è divisa in parti uguali tra i membri
-// indicati in `splitAmong`; chi l'ha inserita è chi l'ha pagata.
+// indicati in `splitAmong` ed è a credito di chi l'ha pagata (`paidBy`).
+
+const payerOf = (e) => e.paidBy || e.createdBy;
 
 export const monthOf = (date) => date.slice(0, 7);
 
@@ -22,8 +24,8 @@ export function computeBalances(expenses, memberIds) {
 
   let totalCents = 0;
   for (const e of expenses) {
-    const split = [...new Set(e.splitAmong?.length ? e.splitAmong : [e.createdBy])];
-    get(e.createdBy).paidCents += e.amountCents;
+    const split = [...new Set(e.splitAmong?.length ? e.splitAmong : [payerOf(e)])];
+    get(payerOf(e)).paidCents += e.amountCents;
     totalCents += e.amountCents;
     for (const id of split) {
       get(id);

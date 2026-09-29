@@ -20,7 +20,8 @@ const doc = {
       date: "2026-09-10",
       note: "Spesa",
       amountCents: 1250,
-      createdBy: "selene@x.it",
+      paidBy: "selene@x.it",
+      createdBy: "fabiano@x.it",
       splitAmong: ["fabiano@x.it", "selene@x.it"],
       createdAt: "2026-09-10T10:00:00.000Z",
       updatedAt: "2026-09-10T10:00:00.000Z",
@@ -56,4 +57,12 @@ test("date e mesi convertiti da Excel in numeri seriali tornano stringhe", () =>
 
 test("un file che non è un wallet viene rifiutato", () => {
   assert.throws(() => tablesToDoc({ Info: [["Chiave", "Valore"]] }), Error);
+});
+
+test("foglio creato prima della colonna \"Inserita da\": vale chi ha pagato", () => {
+  const tables = docToTables(doc);
+  tables.Spese = tables.Spese.map((row) => row.slice(0, 9));
+  const back = tablesToDoc(tables);
+  assert.equal(back.expenses[0].paidBy, "selene@x.it");
+  assert.equal(back.expenses[0].createdBy, "selene@x.it");
 });

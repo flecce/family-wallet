@@ -30,6 +30,7 @@ export function seedDemo() {
     date,
     note,
     amountCents: Math.round(euro * 100),
+    paidBy: by,
     createdBy: by,
     splitAmong: split,
     createdAt: now,

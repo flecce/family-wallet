@@ -1,3 +1,4 @@
+import { demoAllowed } from "./auth.js";
 import { monthOf, monthSummary } from "./balance.js";
 import { demoDriver } from "./driver-demo.js";
 import { googleDriver } from "./driver-google.js";
@@ -68,7 +69,8 @@ export async function createWallet(provider, name, password, user) {
   return key;
 }
 
-export const providerOfCode = (code) => ({ "G-": "google", "M-": "microsoft", "D-": "demo" })[code.slice(0, 2)] ?? null;
+export const providerOfCode = (code) =>
+  ({ "G-": "google", "M-": "microsoft", ...(demoAllowed ? { "D-": "demo" } : {}) })[code.slice(0, 2)] ?? null;
 
 /** Errore lanciato quando si apre un wallet a cui si ha accesso al file ma di cui non si è membri. */
 export class NotMemberError extends Error {
@@ -136,13 +138,14 @@ function assertMonthOpen(doc, date) {
   }
 }
 
-function validExpense({ date, note, amountCents, splitAmong }, doc) {
+function validExpense({ date, note, amountCents, splitAmong, paidBy }, doc) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(t("invalidDate"));
   if (!Number.isInteger(amountCents) || amountCents <= 0) throw new Error(t("invalidAmount"));
   const members = new Set(doc.members.map((m) => m.id));
   const split = [...new Set(splitAmong)].filter((id) => members.has(id));
   if (split.length === 0) throw new Error(t("pickSomeone"));
-  return { date, note: note.trim().slice(0, 200), amountCents, splitAmong: split };
+  if (!members.has(paidBy)) throw new Error(t("pickPayer"));
+  return { date, note: note.trim().slice(0, 200), amountCents, splitAmong: split, paidBy };
 }
 
 export const rules = {
@@ -160,7 +163,7 @@ export const rules = {
   },
 
   addExpense(doc, user, input) {
-    const data = validExpense(input, doc);
+    const data = validExpense({ paidBy: user.id, ...input }, doc);
     assertMonthOpen(doc, data.date);
     const now = new Date().toISOString();
     doc.expenses.push({ id: `e_${uid()}`, ...data, createdBy: user.id, createdAt: now, updatedAt: now });
@@ -170,7 +173,7 @@ export const rules = {
     const expense = doc.expenses.find((e) => e.id === id);
     if (!expense) throw new Error(t("expenseNotFound"));
     if (expense.createdBy !== user.id) throw new Error(t("onlyOwnEdit"));
-    const data = validExpense(input, doc);
+    const data = validExpense({ paidBy: expense.paidBy, ...input }, doc);
     assertMonthOpen(doc, expense.date);
     assertMonthOpen(doc, data.date);
     Object.assign(expense, data, { updatedAt: new Date().toISOString() });

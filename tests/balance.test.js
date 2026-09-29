@@ -7,6 +7,7 @@ const exp = (id, createdBy, amountCents, splitAmong, date = "2026-09-10") => ({
   date,
   note: id,
   amountCents,
+  paidBy: createdBy,
   createdBy,
   splitAmong,
   createdAt: "",
@@ -70,4 +71,10 @@ test("monthSummary considera solo il mese richiesto", () => {
   assert.equal(s.settlement, undefined);
   assert.deepEqual(s.transfers, [{ from: "b", to: "a", amountCents: 1000 }]);
   assert.ok(monthSummary(doc, "2026-08").settlement);
+});
+
+test("spesa inserita a nome di un altro: il credito va a chi ha pagato", () => {
+  const ids = ["fabiano", "selene"];
+  const expense = { ...exp("1", "fabiano", 5000, ids), paidBy: "selene" };
+  assert.deepEqual(computeTransfers(computeBalances([expense], ids)), [{ from: "fabiano", to: "selene", amountCents: 2500 }]);
 });

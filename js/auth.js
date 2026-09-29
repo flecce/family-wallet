@@ -39,8 +39,18 @@ const randomString = (bytes = 16) => b64url(crypto.getRandomValues(new Uint8Arra
 export const isConfigured = (provider) =>
   provider === "google" ? Boolean(cfg.google.clientId) : Boolean(cfg.microsoft.clientId);
 
-/** { provider, user: { id, email, name, picture } } oppure null */
-export const getSession = () => readJson(LS_SESSION);
+/**
+ * Demo senza account: solo in sviluppo (app aperta da localhost), per provare le modifiche.
+ * Sul sito pubblicato si entra esclusivamente con Google o Microsoft.
+ */
+export const demoAllowed = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+
+/** { provider, user: { id, email, name, picture } } oppure null. Una sessione demo fuori da localhost non vale. */
+export function getSession() {
+  const session = readJson(LS_SESSION);
+  if (session?.provider === "demo" && !demoAllowed) return null;
+  return session;
+}
 
 export function signOut() {
   localStorage.removeItem(LS_SESSION);
@@ -211,10 +221,11 @@ export async function handleRedirect() {
   return isGoogle ? completeGoogle(hash, returnHash) : completeMicrosoft(query, returnHash);
 }
 
-/** Avvia il login (redirect alla pagina di Google o Microsoft). La demo invece entra subito. */
+/** Avvia il login (redirect alla pagina di Google o Microsoft). La demo (solo in locale) entra subito. */
 export async function signIn(provider, returnHash = "#/") {
   sessionStorage.setItem("fw.return", returnHash);
   if (provider === "demo") {
+    if (!demoAllowed) throw new Error(t("loginToContinue"));
     const { DEMO_USER, seedDemo } = await import("./driver-demo.js");
     seedDemo();
     writeJson(LS_SESSION, { provider: "demo", user: DEMO_USER });

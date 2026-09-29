@@ -1,8 +1,30 @@
-import { AuthRequiredError, getAccessToken, getSession, handleRedirect, isConfigured, renewSilently, signIn, signOut } from "./auth.js";
+import {
+  AuthRequiredError,
+  demoAllowed,
+  getAccessToken,
+  getSession,
+  handleRedirect,
+  isConfigured,
+  renewSilently,
+  signIn,
+  signOut,
+} from "./auth.js";
 import { monthOf, monthSummary } from "./balance.js";
 import { LANGS, countLabel, lang, setLang, t } from "./i18n.js";
 import { googleLogo, icon, logo, microsoftLogo } from "./icons.js";
 import { canOfferInstall, isIos, promptInstall } from "./install.js";
+import {
+  disableNotifications,
+  enableNotifications,
+  markSeen,
+  notificationsBlocked,
+  notificationsEnabled,
+  notificationsNeedInstall,
+  notificationsSupported,
+  registerServiceWorker,
+  showNotification,
+  unseenExpenses,
+} from "./notify.js";
 import { qrSvg } from "./qr.js";
 import { THEMES, applyTheme, setTheme, theme } from "./theme.js";
 import {
@@ -175,6 +197,7 @@ function openUserMenu({ instant = false } = {}) {
     </div>
 
     <div class="menu-list">
+      ${notificationItem()}
       ${
         canOfferInstall()
           ? `<button class="menu-item" data-action="install">${icon("download", 20)}<span>${esc(t("installApp"))}</span>${icon("next", 18)}</button>`
@@ -203,11 +226,100 @@ function openUserMenu({ instant = false } = {}) {
     close();
     if (!(await promptInstall())) openInstallHelp();
   });
+  el.querySelector("[data-action=notify]")?.addEventListener("click", async (e) => {
+    const item = e.target.closest("[data-action=notify]");
+    if (notificationsEnabled()) {
+      disableNotifications();
+      toast(t("notificationsOff"));
+    } else if (await enableNotifications()) {
+      toast(t("notificationsOn"), "success");
+    } else {
+      toast(t("notificationsBlocked"), "error");
+    }
+    item.outerHTML = notificationItem();
+    // il nuovo elemento non ha il listener: riapro il menu aggiornato senza animazione
+    close({ instant: true });
+    openUserMenu({ instant: true });
+  });
   el.querySelector("[data-action=logout]").addEventListener("click", async () => {
     close();
     const ok = await confirmDialog({ title: t("logoutTitle"), text: t("logoutText"), ok: t("logout"), danger: true });
     if (ok) logout();
   });
+}
+
+/** Voce "Notifiche" del menu: interruttore, oppure spiegazione se non si possono attivare. */
+function notificationItem() {
+  if (notificationsNeedInstall()) {
+    return `<div class="menu-item static">${icon("bell", 20)}<span>${esc(t("notifications"))}<small>${esc(t("notificationsIos"))}</small></span></div>`;
+  }
+  if (!notificationsSupported()) return "";
+  const on = notificationsEnabled();
+  const hint = notificationsBlocked() ? t("notificationsBlocked") : t("notificationsHint");
+  return `<button class="menu-item" data-action="notify" role="switch" aria-checked="${on}">${icon("bell", 20)}<span>${esc(t("notifications"))}<small>${esc(hint)}</small></span><span class="switch" aria-hidden="true"></span></button>`;
+}
+
+// ---------- novità: spese aggiunte dagli altri ----------
+
+let watchTimer = null;
+const notifiedIds = new Set();
+
+function stopWatching() {
+  clearInterval(watchTimer);
+  watchTimer = null;
+}
+
+function newsLine(e, member) {
+  const who = member(e.createdBy);
+  const payer = e.paidBy !== e.createdBy ? ` · ${t("paidByNote", { name: firstName(member(e.paidBy).name) })}` : "";
+  return `
+    <div class="news-item">
+      ${avatar(who, 32)}
+      <p>${esc(t("newExpenseLine", { name: firstName(who.name), note: e.note || t("expense"), amount: formatMoney(e.amountCents) }) + payer)}</p>
+    </div>`;
+}
+
+function newsCard(items, member) {
+  if (!items.length) return "";
+  return `
+    <section class="card news">
+      <div class="card-head"><h2>${icon("bell", 18)} ${esc(t("news"))}</h2><button class="btn btn-ghost btn-small" id="mark-seen">${esc(t("markSeen"))}</button></div>
+      ${items.slice(0, 5).map((e) => newsLine(e, member)).join("")}
+    </section>`;
+}
+
+/** Mentre si guarda un wallet, ricontrolla il foglio ogni minuto e avvisa delle spese nuove degli altri. */
+function watchWallet(key, walletName) {
+  stopWatching();
+  watchTimer = setInterval(async () => {
+    const { seg } = parseHash();
+    if (!session || seg[0] !== "w" || decodeURIComponent(seg[1] ?? "") !== key) return stopWatching();
+    let doc;
+    try {
+      doc = await loadWallet(key, { fresh: true });
+    } catch {
+      return; // rete assente o sessione scaduta: si riprova al giro successivo
+    }
+    const fresh = unseenExpenses(doc, session.user.id, key).filter((e) => !notifiedIds.has(e.id));
+    if (!fresh.length) return;
+    fresh.forEach((e) => notifiedIds.add(e.id));
+    const member = memberLookup(doc);
+
+    if (document.visibilityState === "visible") {
+      const e = fresh[0];
+      toast(t("newExpenseLine", { name: firstName(member(e.createdBy).name), note: e.note || t("expense"), amount: formatMoney(e.amountCents) }));
+      const tab = seg[2] || "mese";
+      if (["mese", "spese", "membri"].includes(tab)) route({ keepSheets: true }); // ridisegna con dati e novità aggiornati
+    } else {
+      for (const e of fresh.slice(0, 3)) {
+        showNotification(
+          t("notifyTitle", { wallet: walletName }),
+          t("notifyBody", { name: firstName(member(e.createdBy).name), note: e.note || t("expense"), amount: formatMoney(e.amountCents) }),
+          { url: location.href, tag: e.id },
+        );
+      }
+    }
+  }, 60_000);
 }
 
 function changeLanguage(next) {
@@ -347,6 +459,7 @@ async function route({ keepSheets = false } = {}) {
   session = getSession();
   const { seg, q } = parseHash();
   const stale = () => seq !== renderSeq;
+  stopWatching(); // riparte solo sulle pagine di un wallet
   try {
     if (seg[0] === "accedi") return viewAccess(q);
     if (!session) {
@@ -406,7 +519,7 @@ function viewLogin() {
         <div class="login-buttons">
           ${btn("google", googleLogo)}
           ${btn("microsoft", microsoftLogo)}
-          <button class="btn btn-link" data-provider="demo">${esc(t("tryDemo"))}</button>
+          ${demoAllowed ? `<button class="btn btn-link" data-provider="demo">${esc(t("tryDemo"))}</button>` : ""}
         </div>
         ${!isConfigured("google") && !isConfigured("microsoft") ? `<p class="hint">${t("notConfigured")}</p>` : ""}
       </div>
@@ -711,27 +824,39 @@ async function viewWallet(key, tab, q, stale) {
   else if (tab === "membri") body = membersTab(key, doc);
   else body = monthTab(key, doc, summary, member);
 
-  render(`${header}<div class="page with-nav">${tab === "membri" ? "" : monthSwitch}${body}</div>${bottomNav(key, tab, month)}`);
+  const news = unseenExpenses(doc, session.user.id, key);
+  news.forEach((e) => notifiedIds.add(e.id)); // già mostrate qui: niente notifica doppia
+
+  render(
+    `${header}<div class="page with-nav">${newsCard(news, member)}${tab === "membri" ? "" : monthSwitch}${body}</div>${bottomNav(key, tab, month)}`,
+  );
 
   app.querySelector("#refresh").addEventListener("click", async (e) => {
     await busy(e.target.closest("button"), "", () => loadWallet(key, { fresh: true })).catch((err) => toast(err.message, "error"));
     route();
   });
+  app.querySelector("#mark-seen")?.addEventListener("click", () => {
+    markSeen(doc, session.user.id, key);
+    app.querySelector(".news")?.remove();
+  });
   bindWalletActions(key, doc, month);
+  watchWallet(key, doc.name);
 }
 
 function expenseRow(key, e, member, month, locked) {
-  const who = member(e.createdBy);
-  const mine = e.createdBy === session.user.id;
+  const payer = member(e.paidBy);
+  const mine = e.createdBy === session.user.id; // modifica e cancella solo chi l'ha inserita
+  const nameOf = (id) => (id === session.user.id ? t("you") : firstName(member(id).name));
   const splitText =
     e.splitAmong.length === 1
       ? t("onlyName", { name: firstName(member(e.splitAmong[0]).name) })
       : t("splitBetween", { n: e.splitAmong.length });
+  const addedBy = e.createdBy !== e.paidBy ? ` · ${t("addedBy", { name: nameOf(e.createdBy) })}` : "";
   const inner = `
-    ${avatar(who, 42)}
+    ${avatar(payer, 42)}
     <span class="tx-info">
       <strong>${esc(e.note || t("expense"))}</strong>
-      <small class="muted">${esc(mine ? t("you") : firstName(who.name))} · ${esc(splitText)}</small>
+      <small class="muted">${esc(`${nameOf(e.paidBy)} · ${splitText}${addedBy}`)}</small>
     </span>
     <span class="tx-amount">${formatMoney(e.amountCents)}${mine && locked ? `<small>${icon("lock", 12)}</small>` : ""}</span>`;
   return mine && !locked
@@ -836,7 +961,7 @@ function monthTab(key, doc, s, member) {
 function expensesTab(key, doc, s, member, q) {
   const filter = q.get("chi");
   const expenses = s.expenses
-    .filter((e) => !filter || e.createdBy === filter)
+    .filter((e) => !filter || e.paidBy === filter)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   const chips = [
@@ -1104,6 +1229,17 @@ async function viewExpenseForm(key, expenseId, q, stale) {
   const defaultDate = backMonth === currentMonth() ? todayIso() : `${backMonth}-01`;
   const date = expense?.date ?? defaultDate;
   const split = new Set(expense?.splitAmong ?? doc.members.map((m) => m.id));
+  const payer = expense?.paidBy ?? user.id;
+
+  const payerChips = doc.members
+    .map(
+      (m) => `
+      <label class="member-chip">
+        <input type="radio" name="paidBy" value="${esc(m.id)}" ${m.id === payer ? "checked" : ""}>
+        <span>${avatar(m, 28)}${esc(m.id === user.id ? t("me") : firstName(m.name))}</span>
+      </label>`,
+    )
+    .join("");
 
   const memberChips = doc.members
     .map(
@@ -1137,6 +1273,11 @@ async function viewExpenseForm(key, expenseId, q, stale) {
           <input name="note" maxlength="200" placeholder="${esc(t("notePlaceholder"))}" value="${esc(expense?.note ?? "")}" autocomplete="off">
         </label>
       </div>
+      ${
+        doc.members.length > 1
+          ? `<div class="section-head"><h2>${esc(t("paidByLabel"))}</h2></div><div class="member-chips">${payerChips}</div>`
+          : `<input type="hidden" name="paidBy" value="${esc(user.id)}">`
+      }
       <div class="section-head"><h2>${esc(t("splitAmong"))}</h2><small class="muted" id="split-hint"></small></div>
       <div class="member-chips">${memberChips}</div>
       <button class="btn btn-primary btn-block" type="submit">${icon("check", 20)} ${esc(expense ? t("saveChanges") : t("addExpense"))}</button>
@@ -1164,7 +1305,8 @@ async function viewExpenseForm(key, expenseId, q, stale) {
     if (!form.date.value) return toast(t("dateRequired"), "error");
     const splitAmong = [...form.querySelectorAll("[name=split]:checked")].map((c) => c.value);
     if (!splitAmong.length) return toast(t("pickSomeone"), "error");
-    const data = { date: form.date.value, note: form.note.value, amountCents, splitAmong };
+    const paidBy = form.querySelector("[name=paidBy]:checked, input[type=hidden][name=paidBy]")?.value ?? user.id;
+    const data = { date: form.date.value, note: form.note.value, amountCents, splitAmong, paidBy };
     try {
       await busy(form.querySelector("[type=submit]"), t("savingSheet"), () =>
         mutateWallet(key, (d) => (expense ? rules.updateExpense(d, user, expense.id, data) : rules.addExpense(d, user, data))),
@@ -1199,6 +1341,7 @@ async function viewExpenseForm(key, expenseId, q, stale) {
 
 async function boot() {
   document.documentElement.lang = lang;
+  history.scrollRestoration = "manual"; // ogni pagina parte dall'alto (anche dopo un ricaricamento), così le novità si vedono
   try {
     const returnHash = await handleRedirect();
     if (returnHash) {
@@ -1214,6 +1357,7 @@ async function boot() {
     if (hash !== location.hash) history.replaceState(null, "", hash);
   }
   applyTheme();
+  registerServiceWorker();
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-user-menu]")) openUserMenu();
   });

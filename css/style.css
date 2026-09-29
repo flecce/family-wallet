@@ -1620,6 +1620,82 @@ a.tx:active {
   color: var(--red);
 }
 
+/* ---------- notifiche e novità ---------- */
+
+.menu-item small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.menu-item.static {
+  cursor: default;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.2s;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+
+[aria-checked="true"] > .switch {
+  background: var(--primary);
+}
+
+[aria-checked="true"] > .switch::after {
+  transform: translateX(18px);
+}
+
+.menu-item[data-action="notify"] {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.news {
+  border: 2px solid var(--primary);
+}
+
+.news h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+}
+
+.news-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.news-item p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 /* ---------- QR code ---------- */
 
 .qr-sheet {
