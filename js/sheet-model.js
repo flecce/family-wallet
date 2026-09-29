@@ -1,7 +1,11 @@
 // Il wallet è un foglio di calcolo (Google Sheets o Excel) con quattro fogli.
 // Questo modulo converte il documento in memoria <-> righe dei fogli.
 
-import { formatMoney } from "./util.js";
+import { t } from "./i18n.js";
+
+// il contenuto del foglio resta in italiano, qualunque sia la lingua dell'app
+const sheetMoney = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const formatMoney = (cents) => sheetMoney.format(cents / 100);
 
 export const SHEETS = {
   expenses: {
@@ -105,7 +109,7 @@ export function docToTables(doc) {
 export function tablesToDoc(tables) {
   const body = (sheet) => nonEmpty((tables[sheet.title] ?? []).slice(1));
   const info = Object.fromEntries(body(SHEETS.info).map((r) => [str(r[0]), str(r[1])]));
-  if (info.app !== APP_MARKER) throw new Error("Questo file non è un wallet di Family Wallet");
+  if (info.app !== APP_MARKER) throw new Error(t("notAWallet"));
 
   return {
     id: info.id,

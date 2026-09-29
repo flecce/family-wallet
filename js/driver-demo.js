@@ -3,6 +3,7 @@
 
 import { docToTables, tablesToDoc } from "./sheet-model.js";
 import { HttpError, currentMonth, shiftMonth, uid } from "./util.js";
+import { t } from "./i18n.js";
 
 const LS = "fw.demo.sheets";
 const load = () => {
@@ -86,11 +87,11 @@ export const demoDriver = {
   },
   async resolveCode(code) {
     const key = `d.${code.slice(2)}`;
-    if (!load()[key]) throw new Error("Wallet non trovato: controlla il codice");
+    if (!load()[key]) throw new Error(t("walletNotFound"));
     return key;
   },
   async remember() {},
   async openUrl() {
-    throw new Error("Nella demo non c'è un foglio reale: i dati sono salvati nel browser");
+    throw new Error(t("demoNoSheet"));
   },
 };

@@ -1,5 +1,6 @@
 import { AuthRequiredError, clearAccessToken, getAccessToken } from "./auth.js";
 import { HttpError } from "./util.js";
+import { t } from "./i18n.js";
 
 /** fetch con il token dell'utente loggato; errori tradotti in HttpError / AuthRequiredError. */
 export async function authFetch(url, init = {}) {
@@ -14,7 +15,7 @@ export async function authFetch(url, init = {}) {
     throw new AuthRequiredError();
   }
   if (!res.ok) {
-    let message = `Errore ${res.status}`;
+    let message = t("errorStatus", { status: res.status });
     try {
       const body = await res.json();
       message = body.error?.message || body.error_description || message;

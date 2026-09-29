@@ -5,6 +5,7 @@
 import { authFetch, authJson, jsonBody } from "./http.js";
 import { SHEETS, SHEET_LIST, sameTable } from "./sheet-model.js";
 import { HttpError } from "./util.js";
+import { t } from "./i18n.js";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
@@ -158,12 +159,12 @@ async function share(key) {
  */
 async function resolveCode(code) {
   const fileId = code.slice(2);
-  if (!/^[\w-]{10,}$/.test(fileId)) throw new Error("Codice wallet non valido");
+  if (!/^[\w-]{10,}$/.test(fileId)) throw new Error(t("invalidCode"));
   try {
     await authFetch(`${SHEETS_API}/${fileId}?fields=spreadsheetId`);
   } catch (err) {
     if (err instanceof HttpError && [403, 404].includes(err.status)) {
-      throw new Error("Wallet non trovato: controlla il codice o chiedi a chi l'ha creato di condividerlo di nuovo");
+      throw new Error(t("walletNotFound"));
     }
     throw err;
   }

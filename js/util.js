@@ -1,20 +1,37 @@
-const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
-const monthFmt = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" });
-const dayFmt = new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long" });
-const shortDateFmt = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" });
+import { locale } from "./i18n.js";
 
-export const formatMoney = (cents) => euro.format(cents / 100);
+// Formattatori nella lingua scelta (ricreati solo quando la lingua cambia)
+const formatters = new Map();
+function fmt(kind, make) {
+  const key = `${kind}|${locale()}`;
+  if (!formatters.has(key)) formatters.set(key, make(locale()));
+  return formatters.get(key);
+}
+const euro = () => fmt("euro", (l) => new Intl.NumberFormat(l, { style: "currency", currency: "EUR" }));
+const monthYearFmt = () => fmt("monthYear", (l) => new Intl.DateTimeFormat(l, { month: "long", year: "numeric" }));
+const monthFmt = () => fmt("month", (l) => new Intl.DateTimeFormat(l, { month: "long" }));
+const dayFmt = () => fmt("day", (l) => new Intl.DateTimeFormat(l, { weekday: "long", day: "numeric", month: "long" }));
+const shortDateFmt = () => fmt("date", (l) => new Intl.DateTimeFormat(l, { day: "numeric", month: "long", year: "numeric" }));
 
-/** "12,50" | "12.5" | "1.234,56" -> centesimi, oppure null se non valido */
+export const formatMoney = (cents) => euro().format(cents / 100);
+
+/** Separatore decimale della lingua scelta ("," o ".") */
+const decimalSeparator = () => (1.5).toLocaleString(locale()).charAt(1);
+
+/** "12,50" | "12.5" | "1.234,56" | "1,234.56" -> centesimi, oppure null se non valido */
 export function parseMoney(text) {
-  let s = String(text).trim().replace(/\s|€/g, "");
+  let s = String(text).trim().replace(/[\s€]/g, "");
   if (!s) return null;
-  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  // il separatore decimale è l'ultimo dei due; l'altro fa da separatore delle migliaia
+  if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
+  else if (lastComma >= 0) s = s.replace(/,/g, "");
   if (!/^\d+(\.\d{0,2})?$/.test(s)) return null;
   return Math.round(Number(s) * 100);
 }
 
-export const centsToInput = (cents) => (cents / 100).toFixed(2).replace(".", ",");
+export const centsToInput = (cents) => (cents / 100).toFixed(2).replace(".", decimalSeparator());
 
 export function todayIso() {
   const d = new Date();
@@ -30,9 +47,15 @@ export function shiftMonth(month, delta) {
 }
 
 const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-export const monthLabel = (month) => capitalize(monthFmt.format(new Date(`${month}-01T12:00:00`)));
-export const dayLabel = (iso) => capitalize(dayFmt.format(new Date(`${iso}T12:00:00`)));
-export const dateLabel = (isoOrTs) => shortDateFmt.format(new Date(isoOrTs.length === 10 ? `${isoOrTs}T12:00:00` : isoOrTs));
+const monthDate = (month) => new Date(`${month}-01T12:00:00`);
+/** "Settembre 2026" (titoli) */
+export const monthLabel = (month) => capitalize(monthYearFmt().format(monthDate(month)));
+/** "settembre 2026" / "September 2026": come si scrive dentro una frase */
+export const monthYearText = (month) => monthYearFmt().format(monthDate(month));
+/** "settembre" / "September": come si scrive dentro una frase */
+export const monthName = (month) => monthFmt().format(monthDate(month));
+export const dayLabel = (iso) => capitalize(dayFmt().format(new Date(`${iso}T12:00:00`)));
+export const dateLabel = (isoOrTs) => shortDateFmt().format(new Date(isoOrTs.length === 10 ? `${isoOrTs}T12:00:00` : isoOrTs));
 
 export function uid() {
   const bytes = crypto.getRandomValues(new Uint8Array(9));

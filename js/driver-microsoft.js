@@ -5,6 +5,7 @@ import { authFetch, authJson, jsonBody } from "./http.js";
 import { SHEET_LIST, columnLetter, sameTable } from "./sheet-model.js";
 import { HttpError, b64urlText, fromB64urlText } from "./util.js";
 import { buildXlsx } from "./xlsx.js";
+import { t } from "./i18n.js";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const APPROOT = `${GRAPH}/me/drive/special/approot`;
@@ -104,9 +105,9 @@ async function resolveCode(code) {
   try {
     url = fromB64urlText(code.slice(2));
   } catch {
-    throw new Error("Codice wallet non valido");
+    throw new Error(t("invalidCode"));
   }
-  if (!/^https:\/\//.test(url)) throw new Error("Codice wallet non valido");
+  if (!/^https:\/\//.test(url)) throw new Error(t("invalidCode"));
   try {
     const item = await authJson(`${GRAPH}/shares/u!${b64urlText(url)}/driveItem?$select=id,name,parentReference`, {
       headers: { Prefer: "redeemSharingLink" },
@@ -114,7 +115,7 @@ async function resolveCode(code) {
     return makeKey(item);
   } catch (err) {
     if (err instanceof HttpError && [400, 403, 404].includes(err.status)) {
-      throw new Error("Wallet non trovato: controlla il codice o chiedi un nuovo invito");
+      throw new Error(t("walletNotFound"));
     }
     throw err;
   }

@@ -55,5 +55,5 @@ test("date e mesi convertiti da Excel in numeri seriali tornano stringhe", () =>
 });
 
 test("un file che non è un wallet viene rifiutato", () => {
-  assert.throws(() => tablesToDoc({ Info: [["Chiave", "Valore"]] }), /non è un wallet/);
+  assert.throws(() => tablesToDoc({ Info: [["Chiave", "Valore"]] }), Error);
 });

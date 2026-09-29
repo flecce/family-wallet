@@ -1,4 +1,5 @@
 import { b64url } from "./util.js";
+import { t } from "./i18n.js";
 
 // Login interamente nel browser, a redirect (niente popup: funziona anche nell'app installata sul telefono).
 // - Google: OAuth 2.0 per app client-side (token nel frammento #access_token=…), serve solo il Client ID.
@@ -20,7 +21,7 @@ const LS_TOKEN = "fw.token";
 const LS_GOOGLE_STATE = "fw.google.state";
 
 export class AuthRequiredError extends Error {
-  constructor(message = "Sessione scaduta: accedi di nuovo") {
+  constructor(message = t("sessionExpiredShort")) {
     super(message);
   }
 }
@@ -81,7 +82,7 @@ async function googleProfile(accessToken) {
   const res = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error("Impossibile leggere il profilo Google");
+  if (!res.ok) throw new Error(t("profileFailed"));
   const p = await res.json();
   return { id: p.email.toLowerCase(), email: p.email, name: p.name || p.email, picture: p.picture };
 }
@@ -90,20 +91,20 @@ async function googleProfile(accessToken) {
 async function completeGoogle(p, returnHash) {
   const expected = localStorage.getItem(LS_GOOGLE_STATE);
   localStorage.removeItem(LS_GOOGLE_STATE);
-  if (!expected || p.get("state") !== expected) throw new Error("Login Google non valido, riprova");
+  if (!expected || p.get("state") !== expected) throw new Error(t("loginInvalid"));
 
   const error = p.get("error");
   if (error) {
     if (["interaction_required", "login_required", "consent_required", "account_selection_required"].includes(error)) {
       // il rinnovo silenzioso non è riuscito: serve un login vero
       signOut();
-      throw new Error("Accedi di nuovo con Google");
+      throw new Error(t("signInAgainGoogle"));
     }
-    throw new Error(error === "access_denied" ? "Accesso annullato" : `Accesso Google non riuscito (${error})`);
+    throw new Error(error === "access_denied" ? t("accessCancelled") : t("loginFailed", { error }));
   }
   const granted = (p.get("scope") ?? "").split(" ");
   if (!GOOGLE_REQUIRED.every((s) => granted.includes(s))) {
-    throw new Error("Per usare l'app devi consentire l'accesso ai Fogli Google e ai file creati dall'app");
+    throw new Error(t("googleScopes"));
   }
 
   const accessToken = p.get("access_token");
@@ -158,7 +159,7 @@ async function microsoftToken(body) {
     body: new URLSearchParams({ client_id: cfg.microsoft.clientId, scope: MS_SCOPES, ...body }),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error_description?.split("\r\n")[0] || json.error || "Accesso Microsoft non riuscito");
+  if (!res.ok) throw new Error(json.error_description?.split("\r\n")[0] || json.error || t("loginFailed", { error: res.status }));
   writeJson(LS_TOKEN, {
     accessToken: json.access_token,
     refreshToken: json.refresh_token,
@@ -171,7 +172,7 @@ async function microsoftProfile(accessToken) {
   const res = await fetch("https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error("Impossibile leggere il profilo Microsoft");
+  if (!res.ok) throw new Error(t("profileFailed"));
   const p = await res.json();
   const email = p.mail || p.userPrincipalName;
   return { id: email.toLowerCase(), email, name: p.displayName || email };
@@ -182,7 +183,7 @@ async function completeMicrosoft(params, returnHash) {
   if (params.has("error")) throw new Error(params.get("error_description") || params.get("error"));
   const pending = JSON.parse(sessionStorage.getItem("fw.ms") || "null");
   sessionStorage.removeItem("fw.ms");
-  if (!pending || pending.state !== params.get("state")) throw new Error("Login Microsoft non valido, riprova");
+  if (!pending || pending.state !== params.get("state")) throw new Error(t("loginInvalid"));
 
   const token = await microsoftToken({
     grant_type: "authorization_code",
@@ -232,7 +233,7 @@ export async function getAccessToken({ interactive = false } = {}) {
   if (token?.accessToken && token.expiresAt > Date.now()) return token.accessToken;
 
   const session = getSession();
-  if (!session) throw new AuthRequiredError("Accedi per continuare");
+  if (!session) throw new AuthRequiredError(t("loginToContinue"));
   if (session.provider === "demo") return "demo";
 
   if (session.provider === "microsoft" && token?.refreshToken) {

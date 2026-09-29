@@ -4,6 +4,7 @@ import { googleDriver } from "./driver-google.js";
 import { microsoftDriver } from "./driver-microsoft.js";
 import { docToTables, tablesToDoc } from "./sheet-model.js";
 import { hashPassword, uid } from "./util.js";
+import { t } from "./i18n.js";
 
 const drivers = { google: googleDriver, microsoft: microsoftDriver, demo: demoDriver };
 const keyPrefix = { "g.": "google", "m~": "microsoft", "d.": "demo" };
@@ -11,7 +12,7 @@ const keyPrefix = { "g.": "google", "m~": "microsoft", "d.": "demo" };
 export const driverForProvider = (provider) => drivers[provider];
 export function driverFor(key) {
   const provider = keyPrefix[key.slice(0, 2)];
-  if (!provider) throw new Error("Indirizzo del wallet non valido");
+  if (!provider) throw new Error(t("invalidWalletAddress"));
   return drivers[provider];
 }
 export const providerOf = (key) => driverFor(key).provider;
@@ -44,7 +45,7 @@ export async function mutateWallet(key, change) {
 export const MIN_PASSWORD = 6;
 
 export async function createWallet(provider, name, password, user) {
-  if (password.length < MIN_PASSWORD) throw new Error(`La password deve avere almeno ${MIN_PASSWORD} caratteri`);
+  if (password.length < MIN_PASSWORD) throw new Error(t("passwordTooShort", { n: MIN_PASSWORD }));
   const now = new Date().toISOString();
   const salt = uid();
   const doc = {
@@ -72,7 +73,7 @@ export const providerOfCode = (code) => ({ "G-": "google", "M-": "microsoft", "D
 /** Errore lanciato quando si apre un wallet a cui si ha accesso al file ma di cui non si è membri. */
 export class NotMemberError extends Error {
   constructor(doc) {
-    super("Inserisci la password per entrare in questo wallet");
+    super(t("notMember"));
     this.doc = doc;
   }
 }
@@ -89,13 +90,13 @@ async function checkPassword(doc, password) {
 export async function joinWithCode(rawCode, password, user, userProvider) {
   const code = rawCode.trim().replace(/\s+/g, "");
   const provider = providerOfCode(code);
-  if (!provider) throw new Error("Codice wallet non valido: deve iniziare con G- o M-");
+  if (!provider) throw new Error(t("invalidCodePrefix"));
   if (provider !== userProvider) {
     throw new Error(
       {
-        google: "Questo wallet è su Google Sheets: accedi con Google per entrarci",
-        microsoft: "Questo wallet è su Excel/OneDrive: accedi con Microsoft per entrarci",
-        demo: "Questo è un codice della demo",
+        google: t("walletOnGoogle"),
+        microsoft: t("walletOnMicrosoft"),
+        demo: t("demoCode"),
       }[provider],
     );
   }
@@ -103,7 +104,7 @@ export async function joinWithCode(rawCode, password, user, userProvider) {
   const key = await driver.resolveCode(code);
   const doc = await loadWallet(key, { fresh: true });
   if (!doc.members.some((m) => m.id === user.id)) {
-    if (!(await checkPassword(doc, password))) throw new Error("Password errata");
+    if (!(await checkPassword(doc, password))) throw new Error(t("wrongPassword"));
     await mutateWallet(key, (d) => rules.ensureMember(d, user));
   }
   const owner = doc.members.find((m) => m.id === doc.ownerId);
@@ -122,16 +123,16 @@ export async function openWallet(key, user) {
 
 function assertMonthOpen(doc, date) {
   if (doc.settlements.some((s) => s.month === monthOf(date))) {
-    throw new Error("Questo mese è già segnato come pagato: riaprilo per modificare le spese");
+    throw new Error(t("monthLocked"));
   }
 }
 
 function validExpense({ date, note, amountCents, splitAmong }, doc) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Data non valida");
-  if (!Number.isInteger(amountCents) || amountCents <= 0) throw new Error("Importo non valido");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(t("invalidDate"));
+  if (!Number.isInteger(amountCents) || amountCents <= 0) throw new Error(t("invalidAmount"));
   const members = new Set(doc.members.map((m) => m.id));
   const split = [...new Set(splitAmong)].filter((id) => members.has(id));
-  if (split.length === 0) throw new Error("Scegli almeno una persona tra cui dividere la spesa");
+  if (split.length === 0) throw new Error(t("pickSomeone"));
   return { date, note: note.trim().slice(0, 200), amountCents, splitAmong: split };
 }
 
@@ -158,8 +159,8 @@ export const rules = {
 
   updateExpense(doc, user, id, input) {
     const expense = doc.expenses.find((e) => e.id === id);
-    if (!expense) throw new Error("Spesa non trovata: forse è stata cancellata");
-    if (expense.createdBy !== user.id) throw new Error("Puoi modificare solo le spese che hai inserito tu");
+    if (!expense) throw new Error(t("expenseNotFound"));
+    if (expense.createdBy !== user.id) throw new Error(t("onlyOwnEdit"));
     const data = validExpense(input, doc);
     assertMonthOpen(doc, expense.date);
     assertMonthOpen(doc, data.date);
@@ -169,7 +170,7 @@ export const rules = {
   deleteExpense(doc, user, id) {
     const index = doc.expenses.findIndex((e) => e.id === id);
     if (index < 0) return;
-    if (doc.expenses[index].createdBy !== user.id) throw new Error("Puoi cancellare solo le spese che hai inserito tu");
+    if (doc.expenses[index].createdBy !== user.id) throw new Error(t("onlyOwnDelete"));
     assertMonthOpen(doc, doc.expenses[index].date);
     doc.expenses.splice(index, 1);
   },
