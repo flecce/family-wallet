@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeBalances, computeTransfers, monthSummary, splitCents } from "../js/balance.js";
+import { computeBalances, computeTransfers, monthSummary } from "../js/balance.js";
 
 const exp = (id, createdBy, amountCents, splitAmong, date = "2026-09-10") => ({
   id,
@@ -11,17 +11,6 @@ const exp = (id, createdBy, amountCents, splitAmong, date = "2026-09-10") => ({
   splitAmong,
   createdAt: "",
   updatedAt: "",
-});
-
-test("splitCents distribuisce il resto senza perdere centesimi", () => {
-  assert.deepEqual(
-    [...splitCents(1000, ["b", "a", "c"]).entries()],
-    [
-      ["a", 334],
-      ["b", 333],
-      ["c", 333],
-    ],
-  );
 });
 
 test("Fabiano deve 100 € a Selene", () => {
@@ -36,6 +25,30 @@ test("tre persone: pagamenti minimi", () => {
     { from: "b", to: "a", amountCents: 3000 },
     { from: "c", to: "a", amountCents: 3000 },
   ]);
+});
+
+test("i centesimi di resto non si accumulano sulla stessa persona", () => {
+  // due spese da 16,45 € pagate da Fabiano e divise a metà: 32,90 € in tutto, 16,45 € a testa
+  const ids = ["fabiano", "selene"];
+  const balances = computeBalances([exp("1", "fabiano", 1645, ids), exp("2", "fabiano", 1645, ids)], ids);
+  assert.deepEqual(
+    balances.map((b) => [b.memberId, b.shareCents]),
+    [
+      ["fabiano", 1645],
+      ["selene", 1645],
+    ],
+  );
+  assert.deepEqual(computeTransfers(balances), [{ from: "selene", to: "fabiano", amountCents: 1645 }]);
+});
+
+test("totale non divisibile: i centesimi avanzati sono al massimo uno a testa e la somma torna", () => {
+  // 20,00 € tra tre persone = 6,666… a testa: due quote da 6,67 e una da 6,66
+  const ids = ["a", "b", "c"];
+  const balances = computeBalances([exp("1", "a", 1000, ids), exp("2", "b", 1000, ids)], ids);
+  const shares = Object.fromEntries(balances.map((b) => [b.memberId, b.shareCents]));
+  assert.equal(shares.a + shares.b + shares.c, 2000);
+  // il centesimo in più va a chi ha pagato, non a chi deve dare
+  assert.deepEqual(shares, { a: 667, b: 667, c: 666 });
 });
 
 test("spesa divisa solo con una persona", () => {

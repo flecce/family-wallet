@@ -3,32 +3,48 @@
 
 export const monthOf = (date) => date.slice(0, 7);
 
-/** Divide un importo; i centesimi di resto vanno ai primi membri (ordinati per id). */
-export function splitCents(amountCents, memberIds) {
-  const ids = [...new Set(memberIds)].sort();
-  const shares = new Map();
-  if (ids.length === 0) return shares;
-  const base = Math.floor(amountCents / ids.length);
-  let remainder = amountCents - base * ids.length;
-  for (const id of ids) {
-    shares.set(id, base + (remainder > 0 ? 1 : 0));
-    if (remainder > 0) remainder--;
-  }
-  return shares;
-}
-
+/**
+ * Saldi del periodo. Le quote si sommano esatte (anche con frazioni di centesimo) e si
+ * arrotondano una volta sola alla fine: arrotondare spesa per spesa accumulerebbe i
+ * centesimi di resto sempre sulla stessa persona.
+ */
 export function computeBalances(expenses, memberIds) {
   const acc = new Map();
+  const exact = new Map(); // quota esatta in centesimi, non arrotondata
   const get = (id) => {
-    if (!acc.has(id)) acc.set(id, { memberId: id, paidCents: 0, shareCents: 0, balanceCents: 0 });
+    if (!acc.has(id)) {
+      acc.set(id, { memberId: id, paidCents: 0, shareCents: 0, balanceCents: 0 });
+      exact.set(id, 0);
+    }
     return acc.get(id);
   };
   memberIds.forEach(get);
+
+  let totalCents = 0;
   for (const e of expenses) {
-    const split = e.splitAmong?.length ? e.splitAmong : [e.createdBy];
+    const split = [...new Set(e.splitAmong?.length ? e.splitAmong : [e.createdBy])];
     get(e.createdBy).paidCents += e.amountCents;
-    for (const [id, share] of splitCents(e.amountCents, split)) get(id).shareCents += share;
+    totalCents += e.amountCents;
+    for (const id of split) {
+      get(id);
+      exact.set(id, exact.get(id) + e.amountCents / split.length);
+    }
   }
+
+  // arrotondamento per difetto, poi i centesimi mancanti a chi ha la parte decimale più alta
+  // (a parità, a chi ha pagato di più): la somma delle quote torna sempre uguale al totale
+  const EPS = 1e-6;
+  for (const [id, value] of exact) acc.get(id).shareCents = Math.floor(value + EPS);
+  let missing = totalCents - [...acc.values()].reduce((sum, b) => sum + b.shareCents, 0);
+  const byRemainder = [...exact.entries()]
+    .map(([id, value]) => ({ id, rest: value - acc.get(id).shareCents }))
+    .sort((a, b) => b.rest - a.rest || acc.get(b.id).paidCents - acc.get(a.id).paidCents || a.id.localeCompare(b.id));
+  for (const { id } of byRemainder) {
+    if (missing <= 0) break;
+    acc.get(id).shareCents += 1;
+    missing--;
+  }
+
   for (const b of acc.values()) b.balanceCents = b.paidCents - b.shareCents;
   return [...acc.values()];
 }
