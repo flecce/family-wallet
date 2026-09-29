@@ -1,0 +1,12 @@
+{
+  "name": "family-wallet",
+  "private": true,
+  "type": "module",
+  "description": "Spese di famiglia su Google Sheets o Excel - sito statico per GitHub Pages",
+  "scripts": {
+    "start": "node scripts/serve.mjs . 8080",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/build.mjs && node scripts/serve.mjs dist 8080",
+    "test": "node --test \"tests/*.test.js\""
+  }
+}

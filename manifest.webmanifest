@@ -1,0 +1,11 @@
+{
+  "name": "Family Wallet",
+  "short_name": "Wallet",
+  "description": "Spese di famiglia condivise su Google Sheets o Excel",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F5FA",
+  "theme_color": "#6A4DF4",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
