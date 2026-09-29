@@ -11,8 +11,8 @@ window.FAMILY_WALLET_CONFIG = {
   },
   push: {
     // Indirizzo del Worker Cloudflare delle notifiche (es. https://family-wallet-push.<account>.workers.dev)
-    workerUrl: "",
-    // Chiave pubblica VAPID (node scripts/vapid-keys.mjs): la privata va solo nei segreti
-    vapidPublicKey: "",
+    workerUrl: "https://family-wallet-push.lecce-fabiano.workers.dev",
+    // Chiave pubblica VAPID (node scripts/vapid-keys.mjs): la privata sta solo nei segreti del Worker
+    vapidPublicKey: "BEqEWwDIJCeBlLR_J7EG9986DS97jKKVHFPPAqjgCOAbTcUVn1kY3Igkmd_3zuddyR1jKBmqITz0bm5ZplBLz7w",
   },
 };

@@ -6,6 +6,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import vm from "node:vm";
 
 const root = path.resolve(import.meta.dirname, "..");
 const out = path.join(root, "dist");
@@ -24,16 +25,24 @@ function hashedName(rel, content) {
   return `${rel.slice(0, -ext.length)}.${hash(content)}${ext}`;
 }
 
-/** js/config.js: se la pipeline ha le variabili FW_*, il file viene generato da quelle. */
+/**
+ * js/config.js: ogni valore viene dalle variabili FW_* della pipeline se presenti,
+ * altrimenti da quello scritto in js/config.js.
+ */
 function configSource() {
   const env = process.env;
-  if (!env.FW_GOOGLE_CLIENT_ID && !env.FW_MICROSOFT_CLIENT_ID) return read("js/config.js");
+  const sandbox = { window: {} };
+  vm.runInNewContext(read("js/config.js"), sandbox);
+  const base = sandbox.window.FAMILY_WALLET_CONFIG;
+  const pick = (name, fallback) => env[name] || fallback || "";
   const config = {
-    google: { clientId: env.FW_GOOGLE_CLIENT_ID ?? "" },
-    microsoft: { clientId: env.FW_MICROSOFT_CLIENT_ID ?? "" },
-    push: { workerUrl: (env.FW_PUSH_WORKER_URL ?? "").replace(/\/$/, ""), vapidPublicKey: env.FW_VAPID_PUBLIC_KEY ?? "" },
+    google: { clientId: pick("FW_GOOGLE_CLIENT_ID", base.google?.clientId) },
+    microsoft: { clientId: pick("FW_MICROSOFT_CLIENT_ID", base.microsoft?.clientId) },
+    push: {
+      workerUrl: pick("FW_PUSH_WORKER_URL", base.push?.workerUrl).replace(/\/$/, ""),
+      vapidPublicKey: pick("FW_VAPID_PUBLIC_KEY", base.push?.vapidPublicKey),
+    },
   };
-  console.log("config.js generato dalle variabili della pipeline");
   return `window.FAMILY_WALLET_CONFIG = ${JSON.stringify(config, null, 2)};\n`;
 }
 
