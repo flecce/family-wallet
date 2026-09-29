@@ -48,7 +48,9 @@ Servono solo i due **Client ID**. Vanno in [`js/config.js`](js/config.js) oppure
 **variabili di Actions** del repository (Settings → Secrets and variables → Actions → Variables):
 `FW_GOOGLE_CLIENT_ID`, `FW_MICROSOFT_CLIENT_ID`. Sono valori pubblici (finiscono nel browser), non segreti.
 
-L'URL dell'app è `https://<utente>.github.io/<repo>/`.
+L'URL dell'app è `https://<utente>.github.io/<repo>/`, oppure quello del dominio personalizzato di GitHub Pages
+se l'account ne ha uno: qui è **`https://lecce.dev/family-wallet/`**. Negli URI di reindirizzamento di Google e
+Microsoft va messo l'indirizzo finale, quello che compare nella barra del browser.
 
 ### Google
 
