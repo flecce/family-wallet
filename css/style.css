@@ -1660,6 +1660,11 @@ a.tx:active {
   transition: transform 0.2s;
 }
 
+/* l'interruttore è uno span come il testo della voce: non deve allargarsi come lui */
+.menu-item .switch {
+  flex: 0 0 44px;
+}
+
 [aria-checked="true"] > .switch {
   background: var(--primary);
 }
