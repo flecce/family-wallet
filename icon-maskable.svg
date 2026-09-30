@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Icona "maskable" per Android: il sistema la ritaglia a cerchio (o altre forme) e garantisce
-       visibile solo il cerchio centrale (80% del lato). Fondo a tutto quadrato, disegno rimpicciolito. -->
+       visibile solo il cerchio centrale (80% del lato). Solo le iniziali "fw", ben dentro la zona sicura. -->
   <defs>
     <linearGradient id="fw-bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#7C5CFF"/>
@@ -8,14 +8,9 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" fill="url(#fw-bg)"/>
-  <g transform="translate(256 256) scale(0.78) translate(-256 -256)">
-    <rect x="56" y="130" width="368" height="252" rx="58" fill="#fff"/>
-    <rect x="352" y="220" width="104" height="72" rx="36" fill="#8F76FF"/>
-    <circle cx="388" cy="256" r="15" fill="#C6F36B"/>
-    <g transform="translate(206 258) scale(0.74) translate(-268 -273)" fill="none" stroke="#6A4DF4" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M174 262H236M204 370V236c0-42 22-62 60-60" stroke-width="34"/>
-      <path d="M250 258 278 350 306 280 334 350 362 258" stroke-width="32"/>
-    </g>
-    <circle cx="223.8" cy="186.2" r="14.8" fill="#C6F36B"/>
+  <g transform="translate(256 262) translate(-268 -273)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M174 262H236M204 370V236c0-42 22-62 60-60" stroke-width="34"/>
+    <path d="M250 258 278 350 306 280 334 350 362 258" stroke-width="32"/>
   </g>
+  <circle cx="280" cy="165" r="20" fill="#C6F36B"/>
 </svg>
