@@ -38,22 +38,19 @@ export function icon(name, size = 22) {
   return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
 }
 
-/** Logo dell'app: famiglia dentro una moneta, con il dollaro (stesso disegno di icon.svg). */
+/** Logo dell'app: portafoglio con le iniziali "fw" (stesso disegno di icon.svg). */
 export function logo(size = 40) {
   return `<svg class="logo" width="${size}" height="${size}" viewBox="0 0 512 512" aria-hidden="true">
-    <defs>
-      <linearGradient id="fw-logo-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#4A2BE0"/></linearGradient>
-      <clipPath id="fw-logo-coin"><circle cx="256" cy="268" r="150"/></clipPath>
-    </defs>
+    <defs><linearGradient id="fw-logo-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#4A2BE0"/></linearGradient></defs>
     <rect width="512" height="512" rx="120" fill="url(#fw-logo-bg)"/>
-    <circle cx="256" cy="268" r="176" fill="#C6F36B"/><circle cx="256" cy="268" r="150" fill="#DDF99E"/>
-    <g clip-path="url(#fw-logo-coin)" fill="#4A2BE0">
-      <circle cx="196" cy="236" r="36"/><path d="M136 440v-100a60 60 0 0 1 120 0v100z"/>
-      <circle cx="316" cy="236" r="36"/><path d="M256 440v-100a60 60 0 0 1 120 0v100z"/>
-      <g fill="#8B6CFF" stroke="#DDF99E" stroke-width="12" paint-order="stroke"><circle cx="256" cy="310" r="26"/><path d="M216 440v-56a40 40 0 0 1 80 0v56z"/></g>
+    <rect x="56" y="130" width="368" height="252" rx="58" fill="#fff"/>
+    <rect x="352" y="220" width="104" height="72" rx="36" fill="#8F76FF"/>
+    <circle cx="388" cy="256" r="15" fill="#C6F36B"/>
+    <g transform="translate(206 258) scale(0.74) translate(-268 -273)" fill="none" stroke="#6A4DF4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M174 262H236M204 370V236c0-42 22-62 60-60" stroke-width="34"/>
+      <path d="M250 258 278 350 306 280 334 350 362 258" stroke-width="32"/>
     </g>
-    <circle cx="392" cy="120" r="54" fill="#fff"/>
-    <path d="M411 99c-4-7-11-11-19-11-11 0-19 6-19 15 0 20 40 11 40 32 0 10-9 16-21 16-9 0-17-5-21-12M392 77v86" fill="none" stroke="#5E40EE" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="223.8" cy="186.2" r="14.8" fill="#C6F36B"/>
   </svg>`;
 }
 
