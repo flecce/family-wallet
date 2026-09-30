@@ -409,6 +409,16 @@ async function busy(button, label, fn) {
   }
 }
 
+/** Schermata di attesa con il logo (la stessa che index.html mostra all'avvio). */
+function splashScreen(message = "") {
+  render(`
+    <div class="splash">
+      ${logo(96).replace('class="logo"', 'class="logo splash-logo"')}
+      <span class="spinner"></span>
+      ${message ? `<p class="muted">${esc(message)}</p>` : ""}
+    </div>`);
+}
+
 function loadingScreen(title = "") {
   render(`
     ${title ? `<header class="topbar"><a class="icon-btn" href="#/" aria-label="${esc(t("back"))}">${icon("back")}</a><div class="topbar-title"><h1>${esc(title)}</h1></div></header>` : ""}
@@ -424,7 +434,7 @@ function errorScreen(err) {
   if (err instanceof AuthRequiredError) {
     // Google: il token dura un'ora, si rinnova da solo con un redirect silenzioso
     if (renewSilently()) {
-      render(`<div class="page center-page"><span class="spinner big"></span><p class="muted">${esc(t("reconnecting"))}</p></div>`);
+      splashScreen(t("reconnecting"));
       return;
     }
     render(`
@@ -780,7 +790,7 @@ function viewAccess(q, message) {
 
   // arrivati dal QR (codice + impronta della password): si entra senza digitare nulla
   if (q.get("k") && code && !wrongProvider && !message) {
-    render(`<div class="page center-page"><span class="spinner big"></span><p class="muted">${esc(t("joiningWallet"))}</p></div>`);
+    splashScreen(t("joiningWallet"));
     joinWithCode(code, null, session.user, session.provider, { key: q.get("k") })
       .then((key) => {
         toast(t("welcomeIn"), "success");
