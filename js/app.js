@@ -561,6 +561,7 @@ function viewLogin() {
     </button>`;
   render(`
     <div class="login">
+      ${langSelect("on-art")}
       <div class="login-art" aria-hidden="true">
         <div class="art-card art-card-back"></div>
         <div class="art-card">
@@ -573,10 +574,7 @@ function viewLogin() {
         <div class="art-bubble art-bubble-2">Selene → Fabiano · ${formatMoney(10000)}</div>
       </div>
       <div class="login-body">
-        <div class="login-top">
-          <div class="brand">${logo(32)}<span>Family Wallet</span></div>
-          ${langSelect()}
-        </div>
+        <div class="brand brand-lg">${logo(64)}<span>Family Wallet</span></div>
         <h1>${esc(t("headline1"))}<br><span class="accent">${esc(t("headline2"))}</span></h1>
         <p class="muted">${esc(t("tagline"))}</p>
         <div class="login-buttons">

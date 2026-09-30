@@ -1832,11 +1832,31 @@ a.tx:active {
   font-size: 15px;
 }
 
-.login-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+/* logo grande nella pagina di login */
+.brand-lg {
+  gap: 14px;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/* selettore della lingua in alto a destra, sopra l'illustrazione */
+.login {
+  position: relative;
+}
+
+.lang-select.on-art {
+  position: absolute;
+  z-index: 2;
+  top: calc(28px + env(safe-area-inset-top));
+  right: 30px;
+  background-color: rgba(255, 255, 255, 0.92);
+  color: #16142b;
+  box-shadow: 0 6px 16px -8px rgba(20, 10, 80, 0.5);
+}
+
+.brand-lg .logo {
+  border-radius: 28%;
 }
 
 .sheet-backdrop.no-anim,
